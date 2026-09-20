@@ -1,0 +1,494 @@
+# The only workflow that calls the real API. Needs the BRIGHTDATA_API_TOKEN
+# secret and spends about one credit per post.
+#
+# Four ways it runs:
+#   on every push to main: one post from nasa and the README's links, one
+#     credit and about three minutes, so a broken commit shows up at once.
+#     A newer push cancels a run still going for an older commit.
+#   by hand, from the Actions tab, to scrape whatever accounts you choose
+#   every day at 06:00 UTC except Monday: one post from nasa, the async
+#     path, and the field table, about two credits
+#   every Monday at 06:00 UTC: the same, plus every code block in the README,
+#     about 35 credits and 30 minutes
+#
+# A slow day at the API shows up as a red run. Rerun it before reading more
+# into it.
+#
+# The daily and Monday runs end by rewriting the "last verified" badge line at
+# the top of README.md with today's date, and committing it if it changed. Push
+# runs never do this, so your own push is never followed by a bot commit. Only
+# the main repository commits; a copy of the repository just runs the checks.
+name: Live check
+
+run-name: "${{ github.event.schedule == '0 6 * * 1' && 'Weekly check: does every README block still work?' || github.event_name == 'schedule' && 'Daily check: is anything broken?' || github.event_name == 'push' && format('Push check: {0}', github.event.head_commit.message) || format('Scrape {0}', inputs.asins) }}"
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 6 * * 0,2-6"  # daily smoke, every day except Monday
+    - cron: "0 6 * * 1"    # Monday: the whole README
+  workflow_dispatch:
+    inputs:
+      asins:
+        description: Amazon ASINs or product URLs, separated by spaces.
+        default: B0CRMZHDG8 B085DVHQ57
+      validate:
+        description: Also run every README block, as the Monday run does
+        type: boolean
+        default: false
+      only:
+        description: Block numbers to run, comma separated, for a cheap check. Empty means all.
+        default: ""
+
+permissions:
+  contents: write  # the daily check commits the regenerated field table
+
+concurrency:
+  group: live-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'push' }}  # only the newest commit matters
+
+jobs:
+  scrape:
+    name: Fetch the posts and attach them to this run
+    runs-on: ubuntu-latest
+    timeout-minutes: 30  # fetch, async path, table; the README blocks have their own jobs
+    env:
+      BRIGHTDATA_API_TOKEN: ${{ secrets.BRIGHTDATA_API_TOKEN }}
+      # On the daily schedule there are no inputs, so fall back to one cheap post.
+      ASINS: ${{ inputs.asins || 'B0CRMZHDG8' }}
+      # the async path and the field table run on every scheduled run and on request
+      CHECK: ${{ github.event_name == 'schedule' || inputs.validate }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: "20"
+      - name: Install the package and the Bright Data CLI
+        run: |
+          npm install
+          npm i -g @brightdata/cli@0.3.4  # pinned: this job holds the API secret
+
+      - name: Do the README's links still resolve?
+        run: |
+          public=$(curl -s -o /dev/null -w '%{http_code}' https://github.com/brightdata/amazon-scraper-node)
+          failed=0
+          for url in $(grep -ohE 'https?://[^ )>"`]+' README.md AGENTS.md | sed 's/[.,]$//' | sort -u); do
+            case "$url" in
+              *amazon.com/*) continue ;;     # rate-limits runners; the weekly README run fetches these products through the API anyway
+              *zendesk.com/*) continue ;;    # answers 403 to anything that is not a browser
+              *mcp.brightdata.com/*) continue ;;  # carries a placeholder token; nothing to check without a real one
+              *github.com/brightdata/amazon-scraper-node*) [ "$public" = "200" ] || continue ;;  # private for now
+            esac
+            code=$(curl -s -o /dev/null -L --retry 3 --max-time 30 -A "Mozilla/5.0" -w '%{http_code}' "$url" || echo 000)
+            if [ "$code" = "200" ]; then echo "200 $url"; else echo "::error::$code $url"; failed=1; fi
+          done
+          [ "$failed" = 0 ] || exit 1
+
+      - name: Fetch the products from Amazon
+        run: |
+          test -n "$BRIGHTDATA_API_TOKEN" || {
+            echo "No API token. Add BRIGHTDATA_API_TOKEN under" >&2
+            echo "Settings, Secrets and variables, Actions, then start this again." >&2
+            exit 1
+          }
+          # One retry, only on an API timeout. A slow day is not a broken build.
+          set +e
+          node src/cli.js $ASINS 2>&1 | tee run.log
+          code=${PIPESTATUS[0]}
+          if [ "$code" != "0" ] && grep -q "timeout" run.log; then
+            echo "::warning::The API timed out. Waiting 30s and trying once more."
+            sleep 30
+            node src/cli.js $ASINS 2>&1 | tee run.log
+            code=${PIPESTATUS[0]}
+          fi
+          exit "$code"
+
+      - name: Show what was found
+        if: always()
+        run: |
+          set -o pipefail
+          test -f amazon.json || exit 0
+          node - <<'JS' | tee -a "$GITHUB_STEP_SUMMARY"
+          import { readFileSync } from "node:fs";
+
+          const doc = JSON.parse(readFileSync("amazon.json", "utf8"));
+          console.log(`Run at ${doc.generated_at}\n`);
+          console.log("| asin | fields | price | rating | reviews |");
+          console.log("| --- | --- | --- | --- | --- |");
+          for (const entry of doc.products) {
+            const p = entry.product;
+            const fields = p ? Object.keys(p).length : 0;
+            console.log(
+              `| ${entry.asin} | ${fields} | ${p?.final_price ?? "-"} ${p?.currency ?? ""} `
+              + `| ${p?.rating ?? "-"} | ${p?.reviews_count ?? "-"} |`,
+            );
+          }
+          const first = doc.products.map((e) => e.product).filter(Boolean)[0];
+          if (first) {
+            console.log("\n<details><summary>First record in full</summary>\n");
+            console.log("```json");
+            console.log(JSON.stringify(first, null, 2));
+            console.log("```\n");
+            console.log("</details>");
+          }
+          JS
+
+      # The two daily checks. Discovery is already covered by the step above.
+      - name: Does the async trigger, status, fetch path still work?
+        if: env.CHECK == 'true'
+        run: |
+          set -o pipefail
+          node - <<'JS' | tee -a "$GITHUB_STEP_SUMMARY"
+          import assert from "node:assert/strict";
+          import { bdclient } from "@brightdata/sdk";
+
+          const url = "https://www.amazon.com/dp/B0CRMZHDG8";
+          const client = new bdclient({ autoCreateZones: false });
+          try {
+            const job = await client.scrape.amazon.collectProducts([url], {
+              async: true,
+              includeErrors: true,
+            });
+            await job.wait({ pollInterval: 5_000, pollTimeout: 480_000 });
+            const status = await job.status();
+            assert.equal(status, "ready", `snapshot ${job.snapshotId} ended as ${status}`);
+            const fetched = await job.fetch();
+            const rows = Array.isArray(fetched) ? fetched : [fetched];
+            assert.ok(rows.length && rows[0].url, "fetch returned no record");
+            console.log(`\nAsync path ok: trigger, status, fetch returned ${rows.length} record(s).`);
+          } finally {
+            await client.close();
+          }
+          JS
+
+      - name: Regenerate the README field table from the live schema
+        if: always() && env.CHECK == 'true' && github.repository == 'brightdata/amazon-scraper-node'
+        run: |
+          set -o pipefail
+          node - <<'JS' | tee -a "$GITHUB_STEP_SUMMARY"
+          import { readFileSync, writeFileSync } from "node:fs";
+          import assert from "node:assert/strict";
+          import { bdclient } from "@brightdata/sdk";
+
+          const path = "README.md";
+          const text = readFileSync(path, "utf8");
+          const start = "<!-- fields:start -->";
+          const end = "<!-- fields:end -->";
+          assert.ok(text.includes(start) && text.includes(end), "README field-table markers are missing");
+
+          const client = new bdclient({ autoCreateZones: false });
+          let fields;
+          try {
+            ({ fields } = await client.datasets.amazonProducts.getMetadata());
+          } finally {
+            await client.close();
+          }
+          const sample = JSON.parse(readFileSync("examples/sample_output.json", "utf8"))
+            .products[0].product;
+
+          // fields is an object keyed by field name, whatever the SDK's .d.ts says
+          // it is (DatasetField[]). Iterating it as an array yields nothing.
+          const entries = Object.entries(fields);
+          // The sample carries a subset of the schema, and the API also returns
+          // fields the schema never lists, so these two counts differ.
+          const known = entries.filter(([n]) => n in sample).length;
+          const extra = Object.keys(sample).filter((k) => !(k in fields));
+          const rows = ["| field | type | description |", "| --- | --- | --- |"];
+          for (const [name, spec] of entries) {
+            const desc = (spec.description ?? "")
+              .replaceAll(" — ", ": ")
+              .replaceAll("—", ":")
+              .split(/\s+/)
+              .join(" ")
+              .replaceAll("`", "'")   // no fences: a description must not become a command
+              .replaceAll("|", "/");  // no table breaks
+            // The API marks personal data itself. Carry that through rather
+            // than keeping a hand-written list that drifts from the schema.
+            const pii = spec.pii ? "Personal data. " : "";
+            rows.push(`| \`${name}\` | ${spec.type} | ${pii}${desc} |`);
+          }
+          const block = [
+            start,
+            "<details>",
+            `<summary>All ${entries.length} fields, with type and description</summary>`,
+            "",
+            "Regenerated every day from the dataset schema, via",
+            "`client.datasets.amazonProducts.getMetadata()`, so it cannot go stale. A",
+            `product carries the fields that apply to it: the sample file has ${known}`,
+            `of these ${entries.length}${extra.length ? `, plus ${extra.map((k) => `\`${k}\``).join(" and ")},` : "."}`,
+            ...(extra.length ? ["which the schema does not list."] : []),
+            "",
+            ...rows,
+            "",
+            "</details>",
+            end,
+          ].join("\n");
+
+          const pattern = new RegExp(`${start.replace(/[-[\]{}()*+?.,\\^$|#]/g, "\\$&")}[\\s\\S]*?${end.replace(/[-[\]{}()*+?.,\\^$|#]/g, "\\$&")}`);
+          const next = text.replace(pattern, () => block);
+          writeFileSync(path, next, "utf8");
+          console.log(`\nSchema: ${entries.length} fields. README table ${next === text ? "already current" : "updated"}.`);
+          JS
+          if git diff --quiet README.md; then
+            echo "Nothing to commit."
+            exit 0
+          fi
+          # Never commit a README the tests would reject.
+          npm test
+          git config user.name "anil-bd"
+          git config user.email "210667061+anil-bd@users.noreply.github.com"
+          git add README.md
+          git commit -m "Regenerate the field table from the live schema (automated daily check)"
+          git pull --rebase origin main
+          git push
+
+      - name: Attach amazon.json so you can download it
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        if: always()
+        with:
+          name: amazon-json
+          path: amazon.json
+          if-no-files-found: warn
+
+  # Every code block in the README, each in its own job, all at once. Mondays,
+  # and on request. Wall clock is the slowest block, about eight minutes,
+  # instead of the sum of all of them.
+  plan:
+    name: List the README blocks
+    if: github.event.schedule == '0 6 * * 1' || inputs.validate == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      blocks: ${{ steps.list.outputs.blocks }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: "20"
+      - id: list
+        env:
+          ONLY: ${{ inputs.only }}
+        run: |
+          node - <<'JS' >> "$GITHUB_OUTPUT"
+          import { readFileSync } from "node:fs";
+
+          // never execute anything inside the generated field table: its text comes from
+          // the API, and a fence in a description must not become a command
+          const readme = readFileSync("README.md", "utf8")
+            .replace(/<!-- fields:start -->[\s\S]*?<!-- fields:end -->/g, "");
+          const SKIP = ["npm install", "npm i ", "export ", "npx -p @brightdata/cli bdata login", "bdata login"];
+          const blocks = [];
+          const seen = new Map();
+          let heading = "README";
+          for (const m of readme.matchAll(/^#{2,3} ([^\n]+)$|```(javascript|bash)\n([\s\S]*?)```/gm)) {
+            if (m[1]) {
+              heading = m[1].trim();  // a block is named after its section, not its first line
+              continue;
+            }
+            const lang = m[2];
+            let code = m[3];
+            let lines = code.split("\n").filter((l) => l.trim() && !l.trim().startsWith("#"));
+            if (lang === "bash") {
+              lines = lines.filter((l) => !SKIP.some((s) => l.startsWith(s)));
+              if (!lines.length) continue;
+              // the CLI cannot open a browser here; the secret goes in by flag, and
+              // only the shell ever sees its value
+              code = lines
+                .map((l) => (l.includes("bdata pipelines") ? `${l} -k "$BRIGHTDATA_API_TOKEN"` : l))
+                .join("\n");
+            }
+            const n = (seen.get(heading) ?? 0) + 1;
+            seen.set(heading, n);
+            const title = n === 1 ? heading : `${heading} (${n})`;
+            blocks.push({ lang, title: title.slice(0, 50), code });
+          }
+          const wanted = new Set(
+            (process.env.ONLY ?? "").split(",").map((s) => s.trim()).filter(Boolean).map(Number),
+          );
+          const out = blocks
+            .map((b, i) => ({ n: i + 1, lang: b.lang, title: b.title }))
+            .filter((b) => !wanted.size || wanted.has(b.n));
+          console.log("blocks=" + JSON.stringify(out));
+          JS
+
+  block:
+    name: "${{ matrix.n }}. ${{ matrix.title }}"
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 25  # a block gives up at 15 minutes; keyword discovery took 547 s once
+    strategy:
+      fail-fast: false
+      # Three at a time, not all of them. On 2026-09-16 the API stalled in
+      # waves: for stretches of an hour most jobs sat until the poll deadline
+      # and returned no rows, then recovered and finished in 60 to 200 seconds.
+      # Load did not explain it. Four concurrent jobs all passed during a good
+      # stretch, and two jobs on their own both stalled during a bad one. The
+      # cause is on the API side and is not established here. This cap does not
+      # fix it. It limits how much of the matrix one bad wave can take down,
+      # and leaves the per-block retry to land in a different wave.
+      max-parallel: 3
+      matrix:
+        include: ${{ fromJson(needs.plan.outputs.blocks) }}
+    env:
+      BRIGHTDATA_API_TOKEN: ${{ secrets.BRIGHTDATA_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: "20"
+      - name: Install the package and, for CLI blocks, the Bright Data CLI
+        run: |
+          npm install
+          # Two README blocks need this package installed, not just its deps.
+          # The command block calls `amazon-scraper` by name, and the import
+          # block does `from "@brightdata/amazon-scraper-node"`. npm install
+          # alone gives neither, where pip install -e gave Python both. So pack
+          # once and install it twice: globally for the command, and into
+          # node_modules under its own name for the import. --no-save keeps the
+          # self-reference out of package.json.
+          tarball=$(npm pack --pack-destination "$RUNNER_TEMP" --silent)
+          npm install -g "$RUNNER_TEMP/$tarball"
+          npm install --no-save "$RUNNER_TEMP/$tarball"
+          if [ "${{ matrix.lang }}" = "bash" ]; then npm i -g @brightdata/cli@0.3.4; fi
+      - name: Run block ${{ matrix.n }} exactly as the README shows it
+        env:
+          N: ${{ matrix.n }}
+        run: |
+          set -o pipefail  # without this, tee's exit code hides a failing block
+          node - <<'JS' | tee -a "$GITHUB_STEP_SUMMARY"
+          import { readFileSync } from "node:fs";
+          import { spawnSync } from "node:child_process";
+          import { setTimeout as sleep } from "node:timers/promises";
+
+          // never execute anything inside the generated field table: its text comes from
+          // the API, and a fence in a description must not become a command
+          const readme = readFileSync("README.md", "utf8")
+            .replace(/<!-- fields:start -->[\s\S]*?<!-- fields:end -->/g, "");
+          const SKIP = ["npm install", "npm i ", "export ", "npx -p @brightdata/cli bdata login", "bdata login"];
+          const blocks = [];
+          const seen = new Map();
+          let heading = "README";
+          for (const m of readme.matchAll(/^#{2,3} ([^\n]+)$|```(javascript|bash)\n([\s\S]*?)```/gm)) {
+            if (m[1]) {
+              heading = m[1].trim();
+              continue;
+            }
+            const lang = m[2];
+            let code = m[3];
+            let lines = code.split("\n").filter((l) => l.trim() && !l.trim().startsWith("#"));
+            if (lang === "bash") {
+              lines = lines.filter((l) => !SKIP.some((s) => l.startsWith(s)));
+              if (!lines.length) continue;
+              code = lines
+                .map((l) => (l.includes("bdata pipelines") ? `${l} -k "$BRIGHTDATA_API_TOKEN"` : l))
+                .join("\n");
+            }
+            const n = (seen.get(heading) ?? 0) + 1;
+            seen.set(heading, n);
+            const title = n === 1 ? heading : `${heading} (${n})`;
+            blocks.push({ lang, title: title.slice(0, 50), code });
+          }
+
+          const b = blocks[Number(process.env.N) - 1];
+          const secret = process.env.BRIGHTDATA_API_TOKEN ?? "";
+          let out = "";
+          let err = "";
+          let ok = false;
+          let secs = 0;
+          let status = null;
+          for (const attempt of [1, 2]) {
+            const started = Date.now();
+            // a README javascript block is ESM: node reads it from stdin under --input-type
+            const run =
+              b.lang === "bash"
+                ? spawnSync("bash", ["-e", "-c", b.code], { encoding: "utf8", timeout: 900_000 })
+                : spawnSync(process.execPath, ["--input-type=module"], {
+                    input: b.code,
+                    encoding: "utf8",
+                    timeout: 900_000,
+                  });
+            secs = Math.round((Date.now() - started) / 1000);
+            out = (run.stdout ?? "").trim();
+            err = (run.stderr ?? "").trim();
+            if (run.error?.code === "ETIMEDOUT" || run.signal) {
+              err = err || "block timeout: no result within 15 minutes";
+            }
+            if (secret) {  // summaries are not secret-masked the way logs are
+              out = out.replaceAll(secret, "***");
+              err = err.replaceAll(secret, "***");
+            }
+            status = run.status;
+            ok = status === 0 && Boolean(b.lang === "javascript" ? out : out || err);
+            if (ok || ((out || err) && !`${out}${err}`.toLowerCase().includes("timeout"))) break;
+            if (attempt === 1) await sleep(30_000);  // the API timed out or said nothing; one retry
+          }
+          // A block that exits 0 and prints nothing is the confusing case: the
+          // snippet ran, the API answered, and the loop had no rows to print.
+          // Saying "no output" alone sends the next reader looking for a crash
+          // that never happened, so name the shape of the failure instead.
+          const quiet = status === 0 && !out && !err;
+          const shown = ok
+            ? (out.split("\n")[0] ?? "")
+            : quiet
+              ? "exited 0 and printed nothing: the call returned no rows"
+              : (err.split("\n").at(-1) || out.split("\n").at(-1) || `no output, exit ${status}`);
+          console.log(`\n\`${b.title}\`: ${ok ? "ok" : "FAILED"} in ${secs}s\n\n    ${shown.slice(0, 120)}`);
+          process.exit(ok ? 0 : 1);
+          JS
+
+  badge:
+    name: Put today's date on the README's "last verified" badge
+    needs: [scrape, plan, block]
+    # scheduled and manual runs only, and only in the main repository: a push is
+    # never followed by a bot commit, and a copy never diverges from the original.
+    #
+    # `inputs.only` empty as well: a run of one block that passes is not the
+    # README verified, and a green badge has to mean the whole of it. A
+    # scheduled run has no inputs at all, where `inputs.only` is null and this
+    # comparison is still true, so the daily and Monday runs still set it.
+    if: always() && !cancelled() && github.event_name != 'push' && inputs.only == '' && github.repository == 'brightdata/amazon-scraper-node'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          # The tip of main, not this run's commit. A re-run checks out the
+          # commit the run first started on, but an earlier attempt of the same
+          # run may already have pushed a badge edit to this very line. Editing
+          # from that stale base gives git two versions of one line, and the
+          # rebase below stops on a conflict. From the tip, the line is replaced,
+          # never merged. This broke on 2026-09-18 when a failed run was re-run.
+          ref: main
+      - name: Rewrite one badge line, commit only if it changed
+        env:
+          SCRAPE: ${{ needs.scrape.result }}
+          BLOCKS: ${{ needs.block.result }}  # skipped on the daily run, and that is fine
+        run: |
+          if [ "$SCRAPE" = "success" ] && { [ "$BLOCKS" = "success" ] || [ "$BLOCKS" = "skipped" ]; }; then
+            label="last verified"; color="brightgreen"
+          else
+            label="last check failed"; color="red"
+          fi
+          today=$(date -u +'%-d %b %Y')
+          line="[![${label}](https://img.shields.io/badge/${label// /%20}-${today// /%20}-${color})](https://github.com/brightdata/amazon-scraper-node/actions/workflows/live.yml) <!-- verified: rewritten by the daily run -->"
+          LINE="$line" node - <<'JS'
+          import { readFileSync, writeFileSync } from "node:fs";
+          const path = "README.md";
+          const text = readFileSync(path, "utf8");
+          const pattern = /^\[!\[last [^\]]*\]\(https:\/\/img\.shields\.io\/badge\/[^)]*\)\]\([^)]*\) <!-- verified:[^\n]*$/m;
+          if (!pattern.test(text)) {
+            console.error("the badge line is missing from README.md");
+            process.exit(1);
+          }
+          writeFileSync(path, text.replace(pattern, () => process.env.LINE), "utf8");
+          JS
+          if git diff --quiet; then echo "badge already shows $today"; exit 0; fi
+          git config user.name "anil-bd"
+          git config user.email "210667061+anil-bd@users.noreply.github.com"
+          # $label, not a fixed "Last verified": the log should not claim a
+          # check passed on a day the badge went red.
+          git commit -qam "${label^} $today (automated daily check)"
+          git pull -q --rebase origin main
+          git push -q origin main
+          echo "badge now shows: $label, $today"

@@ -1,0 +1,133 @@
+# Runs by itself on every push and pull request.
+# Never calls the Instagram API, so it needs no token and costs nothing.
+name: Tests (automatic, no API calls, free)
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:  # a Run workflow button, to re-run the tests without a commit
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: Run the tests and the code style check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: "20"  # the oldest version package.json allows
+      - name: Install the package and its test tools
+        run: npm install
+      - name: Check code style with oxlint
+        run: npm run lint
+      - name: Run the tests
+        run: npm test
+      - name: README headings are well formed
+        # A section rewrite once produced "## The data## The data" and shipped;
+        # a heading with a second run of hashes mid-line is never intended.
+        run: |
+          if grep -nE '^#+ .*#{2,} ' README.md; then
+            echo "::error::malformed heading in README.md"; exit 1
+          fi
+
+  # These install steps shipped broken once, because they were only ever run
+  # from a working copy that already had the package. This job follows the
+  # README on an empty machine and stops where the tool asks for a token, which
+  # proves the clone, the install and the command without spending money.
+  coldstart:
+    name: Follow the README from scratch on an empty machine
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: "20"
+      - name: Copy the install steps out of the README and run them
+        run: |
+          set -o pipefail
+          node - <<'JS' > "$RUNNER_TEMP/quickstart.sh"
+          import { readFileSync, writeFileSync } from "node:fs";
+          import { join } from "node:path";
+
+          const readme = readFileSync("README.md", "utf8");
+          const section = (title) => readme.split(`## ${title}`)[1].split("\n## ")[0];
+          const block = (text, lang) =>
+            new RegExp("```" + lang + "\\n([\\s\\S]*?)```").exec(text)[1];
+
+          const quick = section("Quickstart");
+          const install = block(quick, "bash");
+          const snippet = block(quick, "javascript");
+          const command = block(section("Or run it as a command"), "bash");
+          for (const [required, where] of [
+            ["npm install @brightdata/sdk", install],
+            ["bdclient", snippet],
+            ["amazon-scraper", command],
+          ]) {
+            if (!where.includes(required)) {
+              console.error(`the README no longer contains ${JSON.stringify(required)} where the cold start expects it`);
+              process.exit(1);
+            }
+          }
+
+          writeFileSync(join(process.env.RUNNER_TEMP, "quickstart_snippet.mjs"), snippet);
+          const steps = ["# --- Quickstart: the SDK path ---"];
+          steps.push(...install.split("\n").filter((l) => l.startsWith("npm install")));
+          steps.push(
+            "set +e",
+            "node quickstart_snippet.mjs > out.txt 2> err.txt",
+            "code=$?",
+            "set -e",
+            'test "$code" != "0" || { echo "the snippet ran without a token?"; cat out.txt; exit 1; }',
+            'grep -qi token err.txt || { echo "no token message"; cat err.txt; exit 1; }',
+            'echo "Quickstart: installs, and stops at the token, as documented."',
+            "# --- Or run it as a command: the CLI path ---",
+          );
+          for (let line of command.split("\n")) {
+            if (line.startsWith("amazon-scraper")) continue;  // run below, so the exit code can be checked
+            if (line.startsWith("npm install")) {
+              // While the repository is private nobody, including this runner,
+              // can fetch that URL, so fall back to the checkout. When it goes
+              // public the check arms itself and tests the exact line a reader
+              // pastes. Nothing to remember later.
+              const repo = "https://github.com/brightdata/amazon-scraper-node";
+              line = [
+                `repo="${repo}"`,
+                'code=$(curl -s -o /dev/null -w "%{http_code}" "$repo" || echo 000)',
+                'if [ "$code" = "200" ]; then',
+                '  echo "$repo is public: installing the exact README line"',
+                `  ${line}`,
+                "else",
+                '  echo "NOTE: $repo returns HTTP $code, so it is not public yet."',
+                '  echo "Installing from this checkout instead."',
+                // Pack, then install the tarball. `npm install -g <dir>` links
+                // to the directory instead of copying it, so the command would
+                // resolve its imports from a checkout that has no node_modules
+                // and die with ERR_MODULE_NOT_FOUND. Packing is also what
+                // installing from a git URL does, so this stays the same test.
+                '  tarball=$(cd "$GITHUB_WORKSPACE" && npm pack --pack-destination "$RUNNER_TEMP" --silent)',
+                '  npm install -g "$RUNNER_TEMP/$tarball"',
+                "fi",
+              ].join("\n");
+            }
+            steps.push(line);
+          }
+          steps.push(
+            "set +e",
+            "amazon-scraper B0CRMZHDG8 > out.txt 2> err.txt",
+            "code=$?",
+            "set -e",
+            'test "$code" = "2" || { echo "expected exit 2, got $code"; cat err.txt; exit 1; }',
+            'grep -qi token err.txt || { echo "no token message"; cat err.txt; exit 1; }',
+            'echo "Success: a new user can follow both README paths from scratch."',
+          );
+          console.log(steps.join("\n"));
+          JS
+          echo "--- these commands came out of README.md ---"
+          cat "$RUNNER_TEMP/quickstart.sh"
+          echo "--- running them on this empty machine ---"
+          cd "$RUNNER_TEMP" && bash -e "$RUNNER_TEMP/quickstart.sh"

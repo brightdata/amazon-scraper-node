@@ -1,0 +1,4 @@
+.env
+node_modules/
+amazon.json
+package-lock.json

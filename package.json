@@ -1,0 +1,22 @@
+{
+  "name": "@brightdata/amazon-scraper-node",
+  "version": "0.1.0",
+  "description": "Amazon scraper in JavaScript: products, reviews, sellers and search as JSON, on the Bright Data Amazon Scraper API (Web Scraper API). No login, no browser. 5,000 free credits a month.",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "engines": { "node": ">=20" },
+  "main": "src/index.js",
+  "exports": { ".": "./src/index.js" },
+  "bin": { "amazon-scraper": "src/cli.js" },
+  "files": ["src"],
+  "scripts": {
+    "test": "node --test tests/",
+    "lint": "oxlint src tests"
+  },
+  "dependencies": { "@brightdata/sdk": "^1.2.0" },
+  "devDependencies": { "oxlint": "^1.83.0" },
+  "repository": { "type": "git", "url": "git+https://github.com/brightdata/amazon-scraper-node.git" },
+  "bugs": { "url": "https://github.com/brightdata/amazon-scraper-node/issues" },
+  "homepage": "https://github.com/brightdata/amazon-scraper-node#readme"
+}
