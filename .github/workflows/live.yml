@@ -1,12 +1,12 @@
 # The only workflow that calls the real API. Needs the BRIGHTDATA_API_TOKEN
-# secret and spends about one credit per post.
+# secret and spends about one credit per product.
 #
 # Four ways it runs:
-#   on every push to main: one post from nasa and the README's links, one
-#     credit and about three minutes, so a broken commit shows up at once.
+#   on every push to main: one product and the README's links, one
+#     credit and about a minute, so a broken commit shows up at once.
 #     A newer push cancels a run still going for an older commit.
 #   by hand, from the Actions tab, to scrape whatever accounts you choose
-#   every day at 06:00 UTC except Monday: one post from nasa, the async
+#   every day at 06:00 UTC except Monday: one product, the async
 #     path, and the field table, about two credits
 #   every Monday at 06:00 UTC: the same, plus every code block in the README,
 #     about 35 credits and 30 minutes
@@ -50,12 +50,12 @@ concurrency:
 
 jobs:
   scrape:
-    name: Fetch the posts and attach them to this run
+    name: Fetch the products and attach them to this run
     runs-on: ubuntu-latest
     timeout-minutes: 30  # fetch, async path, table; the README blocks have their own jobs
     env:
       BRIGHTDATA_API_TOKEN: ${{ secrets.BRIGHTDATA_API_TOKEN }}
-      # On the daily schedule there are no inputs, so fall back to one cheap post.
+      # On the daily schedule there are no inputs, so fall back to one cheap product.
       ASINS: ${{ inputs.asins || 'B0CRMZHDG8' }}
       # the async path and the field table run on every scheduled run and on request
       CHECK: ${{ github.event_name == 'schedule' || inputs.validate }}
