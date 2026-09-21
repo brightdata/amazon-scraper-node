@@ -1,8 +1,4 @@
-<!-- The banner belongs here, at .github/banner.png, once it is added to the
-repository. Linking it before the file exists would render a broken image on
-the repository's front page. The alt text and link to restore:
-[![Scrape Amazon data with the Amazon Scraper API: products, reviews, sellers, search. Collect or discover by URL, keyword and ASIN. Start free.](.github/banner.png)](https://brightdata.com/products/web-scraper/amazon?utm_source=github)
--->
+[![Scrape Amazon data with the Amazon Scraper API: products, reviews, sellers, search. Collect or discover by ASIN, keyword and UPC. Start free.](.github/banner.png)](https://brightdata.com/products/web-scraper/amazon?utm_source=github)
 
 # amazon-scraper-node
 
