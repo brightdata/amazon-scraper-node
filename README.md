@@ -298,7 +298,8 @@ schema: `seller_name`, `zipcode` and `coupon`.
 <details>
 <summary>All 119 fields, with type and description</summary>
 
-Regenerated every day from the dataset schema, so it cannot go stale. A
+Regenerated every day from the dataset schema, via
+`client.datasets.amazonProducts.getMetadata()`, so it cannot go stale. A
 product carries the fields that apply to it: the sample file has 97
 of these 119, plus `timestamp` and `input`,
 which the schema does not list.
