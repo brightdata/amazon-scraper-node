@@ -6,9 +6,9 @@
 #     credit and about a minute, so a broken commit shows up at once.
 #     A newer push cancels a run still going for an older commit.
 #   by hand, from the Actions tab, to scrape whatever accounts you choose
-#   every day at 06:00 UTC except Monday: one product, the async
+#   every day at 07:00 UTC except Monday: one product, the async
 #     path, and the field table, about two credits
-#   every Monday at 06:00 UTC: the same, plus every code block in the README,
+#   every Monday at 07:00 UTC: the same, plus every code block in the README,
 #     about 35 credits and 30 minutes
 #
 # A slow day at the API shows up as a red run. Rerun it before reading more
@@ -20,14 +20,17 @@
 # the main repository commits; a copy of the repository just runs the checks.
 name: Live check
 
-run-name: "${{ github.event.schedule == '0 6 * * 1' && 'Weekly check: does every README block still work?' || github.event_name == 'schedule' && 'Daily check: is anything broken?' || github.event_name == 'push' && format('Push check: {0}', github.event.head_commit.message) || format('Scrape {0}', inputs.asins) }}"
+run-name: "${{ github.event.schedule == '0 7 * * 1' && 'Weekly check: does every README block still work?' || github.event_name == 'schedule' && 'Daily check: is anything broken?' || github.event_name == 'push' && format('Push check: {0}', github.event.head_commit.message) || format('Scrape {0}', inputs.asins) }}"
 
 on:
   push:
     branches: [main]
   schedule:
-    - cron: "0 6 * * 0,2-6"  # daily smoke, every day except Monday
-    - cron: "0 6 * * 1"    # Monday: the whole README
+    - cron: "0 7 * * 0,2-6"  # daily smoke, every day except Monday
+    - cron: "0 7 * * 1"    # Monday: the whole README. Staggered across the
+      # scraper repos (06:00, 06:20, 06:40, 07:00) so four full matrices never
+      # hit one account at once, which is what trips "too many requests".
+      # The two `== '0 7 * * 1'` checks below must match this line exactly.
   workflow_dispatch:
     inputs:
       asins:
@@ -256,7 +259,7 @@ jobs:
   # instead of the sum of all of them.
   plan:
     name: List the README blocks
-    if: github.event.schedule == '0 6 * * 1' || inputs.validate == true
+    if: github.event.schedule == '0 7 * * 1' || inputs.validate == true
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
