@@ -81,7 +81,7 @@ jobs:
               *amazon.com/*) continue ;;     # rate-limits runners; the weekly README run fetches these products through the API anyway
               *zendesk.com/*) continue ;;    # answers 403 to anything that is not a browser
               *mcp.brightdata.com/*) continue ;;  # carries a placeholder token; nothing to check without a real one
-              *github.com/brightdata/amazon-scraper-node*) [ "$public" = "200" ] || continue ;;  # private for now
+              *github.com/brightdata/amazon-scraper-node*) [ "$public" = "200" ] || continue ;;  # unreachable on a private fork
             esac
             code=$(curl -s -o /dev/null -L --retry 3 --max-time 30 -A "Mozilla/5.0" -w '%{http_code}' "$url" || echo 000)
             if [ "$code" = "200" ]; then echo "200 $url"; else echo "::error::$code $url"; failed=1; fi
