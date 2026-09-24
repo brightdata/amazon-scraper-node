@@ -506,7 +506,8 @@ Data connects to, from LangChain to Zapier and n8n:
 ## Support
 
 Bugs in this repo:
-[open an issue](https://github.com/brightdata/amazon-scraper-node/issues).
+[open an issue](https://github.com/brightdata/amazon-scraper-node/issues), and
+[CONTRIBUTING.md](CONTRIBUTING.md) says what to put in it.
 Anything about the API, your account or your credits:
 [Bright Data support](https://brightdata.zendesk.com/hc/en-us/requests/new).
 

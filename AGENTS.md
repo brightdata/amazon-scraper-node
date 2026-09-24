@@ -101,5 +101,5 @@ timeouts is probably a bad wave: rerun it before looking for a code change.
   workflow executes every fenced block in the README against the real API.
 - The field table and the "last verified" badge are rewritten by the daily run.
   Do not edit either by hand.
-- Keep it small: 14 files and about 350 lines of JavaScript in `src/`. Do not
+- Keep it small: 15 files and about 350 lines of JavaScript in `src/`. Do not
   add retries, deduplication, scheduling, databases or concurrency.
