@@ -519,3 +519,7 @@ Anything about the API, your account or your credits:
 ## License
 
 [Apache 2.0](LICENSE).
+
+## Python version
+
+The same Amazon scraper is available for Python: [brightdata/amazon-scraper](https://github.com/brightdata/amazon-scraper).
