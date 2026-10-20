@@ -4,7 +4,7 @@
   "description": "Amazon scraper in JavaScript: products, reviews, sellers and search as JSON, on the Bright Data Amazon Scraper API (Web Scraper API). No login, no browser. 5,000 free credits a month.",
   "private": true,
   "type": "module",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "engines": { "node": ">=20" },
   "main": "src/index.js",
   "exports": { ".": "./src/index.js" },

@@ -518,4 +518,4 @@ Anything about the API, your account or your credits:
 
 ## License
 
-MIT.
+[Apache 2.0](LICENSE).
