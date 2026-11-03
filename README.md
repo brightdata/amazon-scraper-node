@@ -1,11 +1,11 @@
 [![Scrape Amazon data with the Amazon Scraper API: products, reviews, sellers, search. Collect or discover by ASIN, keyword and UPC. Start free.](.github/banner.png)](https://brightdata.com/products/web-scraper/amazon?utm_source=github)
 
-# amazon-scraper-node
+# Amazon scraper for Node.js and JavaScript
 
 [![Live check](https://github.com/brightdata/amazon-scraper-node/actions/workflows/live.yml/badge.svg)](https://github.com/brightdata/amazon-scraper-node/actions/workflows/live.yml)
 [![last verified](https://img.shields.io/badge/last%20verified-3%20Nov%202026-brightgreen)](https://github.com/brightdata/amazon-scraper-node/actions/workflows/live.yml) <!-- verified: rewritten by the daily run -->
 
-[Quickstart](#quickstart) · [Command](#or-run-it-as-a-command) · [Endpoints](#the-rest-of-the-api) · [Data](#the-data) · [Errors](#when-it-fails) · [Coding agents](#coding-agents) · [Docs](https://docs.brightdata.com/products/scrapers/amazon/introduction) · [Support](#support)
+[Quickstart](#how-to-scrape-amazon-product-data-with-nodejs) · [No PA-API](#scrape-amazon-without-the-product-advertising-api) · [CLI](#bulk-amazon-scraper-cli) · [Endpoints](#scrape-amazon-products-reviews-sellers-and-search-results) · [Data](#amazon-product-data-fields-json) · [Errors](#amazon-scraper-errors) · [MCP and Claude Code](#amazon-mcp-server-and-claude-code-skill) · [Free credits](#is-this-amazon-scraper-free) · [Docs](https://docs.brightdata.com/products/scrapers/amazon/introduction) · [Support](#support)
 
 Amazon products, reviews, sellers and search results as JSON, in JavaScript. No
 login, no browser. Built on the
@@ -16,9 +16,9 @@ Full API docs:
 [Amazon Scraper API](https://docs.brightdata.com/products/scrapers/amazon/introduction).
 
 Also here: a one-command CLI for products, and the
-[Bright Data CLI](#coding-agents), which needs no JavaScript at all.
+[Bright Data CLI](#amazon-mcp-server-and-claude-code-skill), which needs no JavaScript at all.
 
-## Quickstart
+## How to scrape Amazon product data with Node.js
 
 Node 20 or newer. This package is ESM, so use `import`, not `require`.
 
@@ -83,10 +83,16 @@ The SDK's product filter takes `url`, `zipcode` and `language`. The API also
 accepts `asin`, `origin_url` and `all_variations`, and the filter rejects all
 three, so pass an ASIN as a `/dp/` URL as above.
 
-## Or run it as a command
+## Scrape Amazon without the Product Advertising API
 
-The command in this repo does the same for several ASINs and writes one JSON
-file.
+The Amazon Scraper API needs no Amazon account, no seller account and no
+Product Advertising API (PA-API) access key. The only credential is a Bright
+Data API key, set as `BRIGHTDATA_API_TOKEN` or stored by `bdata login`.
+
+## Bulk Amazon scraper CLI
+
+The command in this repo runs the Node.js quickstart for several ASINs at
+once and writes one JSON file.
 
 ```bash
 npm install -g github:brightdata/amazon-scraper-node
@@ -142,7 +148,7 @@ B0CRMZHDG8: STANLEY Quencher H2.0 Flow State Tumbler, 40 oz, Fuchsia
 B0ZZZZZZZZ failed: The navigation resulted in a dead page (404 status code)
 ```
 
-## The rest of the API
+## Scrape Amazon products, reviews, sellers and search results
 
 The command covers the first row of the table below. Every snippet here is
 complete and needs only `@brightdata/sdk`: paste it as is. Every one of them
@@ -162,7 +168,7 @@ badge at the top is the latest result.
 
 All of them hang off `client.scrape.amazon`.
 
-### Reviews are not run here, and the reason is money
+### Scrape Amazon reviews, and why the call is not run here
 
 Reviews bill one credit per review, and there is no working way to ask for
 fewer through this SDK.
@@ -175,7 +181,7 @@ across two products, while working normally on products
 ([sdk-js#37](https://github.com/brightdata/sdk-js/issues/37)).
 
 So the only reviews call that returns anything is the uncapped one. The product
-in this README's Quickstart reports 205,036 reviews. That is one call.
+in this README's [quickstart](#how-to-scrape-amazon-product-data-with-nodejs) reports 205,036 reviews. That is one call.
 
 Check `reviews_count` on the product first, and until the SDK carries
 `max_reviews`, call the REST endpoint directly if you need a bounded slice.
@@ -191,7 +197,7 @@ typed call is the uncapped one.
 
 Every discovery snippet here passes both.
 
-### Products by keyword
+### Scrape Amazon products by keyword
 
 ```javascript
 import { bdclient } from "@brightdata/sdk";
@@ -217,7 +223,7 @@ B0D8J2ZB8P | 14.24 USD | POWCAN 26 oz Insulated Water Bottle with
 
 Without `limitPerInput` that call returns every match, billed one credit each.
 
-### Several products, one job
+### Scrape multiple Amazon ASINs in one job
 
 An array of URLs is one job, not one per product.
 
@@ -273,7 +279,7 @@ status: ready
 fetched: B0CRMZHDG8 | STANLEY Quencher H2.0 Flow State Tumbler
 ```
 
-## The data
+## Amazon product data fields (JSON)
 
 The fields most people want from a product:
 
@@ -455,7 +461,7 @@ The whole file, one product with every field, is
 
 </details>
 
-## When it fails
+## Amazon scraper errors
 
 | you see | what it means |
 | --- | --- |
@@ -476,7 +482,7 @@ From the SDK, the same conditions look like this:
 | a row in `result.data` with an `error` key | The API's answer for one input, when you asked for `includeErrors`. The other rows are fine. |
 | a successful result with zero rows | On the reviews dataset, that is `limitPerInput`. Remove it, and mind the bill. |
 
-## Coding agents
+## Amazon MCP server and Claude Code skill
 
 No JavaScript, nothing installed. Paste both lines; the first opens a browser
 once, or use `bdata login --device` over SSH and in CI:
@@ -509,6 +515,14 @@ An agent can also open the account itself, no signup form:
 Data connects to, from LangChain to Zapier and n8n:
 [integrations](https://docs.brightdata.com/integrations/introduction).
 
+## Is this Amazon scraper free?
+
+New Bright Data accounts get
+[5,000 free credits a month](https://docs.brightdata.com/general/account/billing-and-pricing/free-tier).
+Products and search results cost one credit per record, and reviews one
+credit per review, so the free credits cover 5,000 products a month.
+[Pricing](https://brightdata.com/pricing/web-scraper) lists the rates after that.
+
 ## Support
 
 Bugs in this repo:
@@ -521,6 +535,6 @@ Anything about the API, your account or your credits:
 
 [Apache 2.0](LICENSE).
 
-## Python version
+## Amazon scraper for Python
 
 The same Amazon scraper is available for Python: [brightdata/amazon-scraper](https://github.com/brightdata/amazon-scraper).

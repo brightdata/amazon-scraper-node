@@ -59,10 +59,10 @@ jobs:
           const block = (text, lang) =>
             new RegExp("```" + lang + "\\n([\\s\\S]*?)```").exec(text)[1];
 
-          const quick = section("Quickstart");
+          const quick = section("How to scrape Amazon product data with Node.js");
           const install = block(quick, "bash");
           const snippet = block(quick, "javascript");
-          const command = block(section("Or run it as a command"), "bash");
+          const command = block(section("Bulk Amazon scraper CLI"), "bash");
           for (const [required, where] of [
             ["npm install @brightdata/sdk", install],
             ["bdclient", snippet],
