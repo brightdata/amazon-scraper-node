@@ -1,9 +1,9 @@
-[![Scrape Amazon data with the Amazon Scraper API: products, reviews, sellers, search. Collect or discover by ASIN, keyword and UPC. Start free.](.github/banner.png)](https://brightdata.com/products/web-scraper/amazon?utm_source=github)
+[![Scrape Amazon data with the Amazon Scraper API: products, reviews, sellers, search. Collect or discover by ASIN, keyword and UPC. Start free.](.github/banner.png)](https://brightdata.com/products/web-scraper/amazon?utm_source=github&utm_medium=referral&utm_content=amazon-scraper-node)
 
 # Amazon scraper for Node.js and JavaScript
 
 Scrape Amazon products, reviews, sellers and search results to JSON with Node.js and JavaScript. No Product Advertising API key, no login.
-Built on the [Bright Data Amazon Scraper API](https://brightdata.com/products/web-scraper/amazon?utm_source=github). New accounts get 5,000 free credits a month.
+Built on the [Bright Data Amazon Scraper API](https://brightdata.com/products/web-scraper/amazon?utm_source=github&utm_medium=referral&utm_content=amazon-scraper-node). New accounts get 5,000 free credits a month.
 
 [![Live check](https://github.com/brightdata/amazon-scraper-node/actions/workflows/live.yml/badge.svg)](https://github.com/brightdata/amazon-scraper-node/actions/workflows/live.yml)
 [![last verified](https://img.shields.io/badge/last%20verified-9%20Nov%202026-brightgreen)](https://github.com/brightdata/amazon-scraper-node/actions/workflows/live.yml) <!-- verified: rewritten by the daily run -->
@@ -12,7 +12,7 @@ Built on the [Bright Data Amazon Scraper API](https://brightdata.com/products/we
 
 Amazon products, reviews, sellers and search results as JSON, in JavaScript. No
 login, no browser. Built on the
-[Bright Data Amazon Scraper API](https://brightdata.com/products/web-scraper/amazon?utm_source=github).
+[Bright Data Amazon Scraper API](https://brightdata.com/products/web-scraper/amazon?utm_source=github&utm_medium=referral&utm_content=amazon-scraper-node).
 
 Uses the [Bright Data JavaScript SDK](https://github.com/brightdata/sdk-js).
 Full API docs:
