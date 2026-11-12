@@ -6,7 +6,7 @@ Scrape Amazon products, reviews, sellers and search results to JSON with Node.js
 Built on the [Bright Data Amazon Scraper API](https://brightdata.com/products/web-scraper/amazon?utm_source=github&utm_medium=referral&utm_content=amazon-scraper-node). New accounts get 5,000 free credits a month.
 
 [![Live check](https://github.com/brightdata/amazon-scraper-node/actions/workflows/live.yml/badge.svg)](https://github.com/brightdata/amazon-scraper-node/actions/workflows/live.yml)
-[![last verified](https://img.shields.io/badge/last%20verified-11%20Nov%202026-brightgreen)](https://github.com/brightdata/amazon-scraper-node/actions/workflows/live.yml) <!-- verified: rewritten by the daily run -->
+[![last verified](https://img.shields.io/badge/last%20verified-11%20Nov%202026-brightgreen)](https://github.com/brightdata/amazon-scraper-node/actions/workflows/live.yml) <!-- verified: rewritten by the weekly run -->
 
 [Quickstart](#how-to-scrape-amazon-product-data-with-nodejs) · [No PA-API](#scrape-amazon-without-the-product-advertising-api) · [CLI](#bulk-amazon-scraper-cli) · [Endpoints](#scrape-amazon-products-reviews-sellers-and-search-results) · [Data](#amazon-product-data-fields-json) · [Errors](#amazon-scraper-errors) · [MCP and Claude Code](#amazon-mcp-server-and-claude-code-skill) · [Free credits](#is-this-amazon-scraper-free) · [Docs](https://docs.brightdata.com/products/scrapers/amazon/introduction) · [Support](#support)
 
@@ -300,7 +300,7 @@ schema: `seller_name`, `zipcode` and `coupon`.
 <details>
 <summary>All 122 fields, with type and description</summary>
 
-Regenerated every day from the dataset schema, via
+Regenerated every week from the dataset schema, via
 `client.datasets.amazonProducts.getMetadata()`, so it cannot go stale. A
 product carries the fields that apply to it: the sample file has 97
 of these 122, plus `timestamp` and `input`,

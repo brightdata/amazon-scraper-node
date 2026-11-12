@@ -99,7 +99,7 @@ timeouts is probably a bad wave: rerun it before looking for a code change.
 - `npm test` runs offline and needs no token. `npm run lint` must pass.
 - CI installs from the README's own commands on an empty machine. A weekly
   workflow executes every fenced block in the README against the real API.
-- The field table and the "last verified" badge are rewritten by the daily run.
+- The field table and the "last verified" badge are rewritten by the weekly run.
   Do not edit either by hand.
 - Keep it small: 15 files and about 350 lines of JavaScript in `src/`. Do not
   add retries, deduplication, scheduling, databases or concurrency.
