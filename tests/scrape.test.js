@@ -395,3 +395,11 @@ describe("the README", () => {
     }
   });
 });
+
+describe("input cost", () => {
+  test("a long run of slashes is cheap to reject", () => {
+    const started = Date.now();
+    assert.throws(() => cleanAsin(`${"/".repeat(50_000)}x`), /is not an Amazon ASIN/);
+    assert.ok(Date.now() - started < 500);
+  });
+});

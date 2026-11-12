@@ -34,11 +34,18 @@ const ASIN = /^[A-Z0-9]{10}$/i;
  */
 export const sdk = { bdclient };
 
+/** value without trailing ch, without a backtracking regex. */
+function trimEnd(value, ch) {
+  let to = value.length;
+  while (to > 0 && value[to - 1] === ch) to -= 1;
+  return value.slice(0, to);
+}
+
 /** Accept B0CRMZHDG8, a /dp/ URL, a /gp/product/ URL, or one with a query. */
 export function cleanAsin(input) {
   const raw = String(input ?? "").trim();
   const fromPath = raw.match(/\/(?:dp|gp\/product|gp\/aw\/d)\/([A-Z0-9]{10})/i);
-  const candidate = fromPath ? fromPath[1] : raw.split("?")[0].split("#")[0].replace(/\/+$/, "");
+  const candidate = fromPath ? fromPath[1] : trimEnd(raw.split("?")[0].split("#")[0], "/");
   if (!ASIN.test(candidate)) {
     throw new Error(`${JSON.stringify(raw)} is not an Amazon ASIN`);
   }
