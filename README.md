@@ -298,12 +298,12 @@ schema: `seller_name`, `zipcode` and `coupon`.
 
 <!-- fields:start -->
 <details>
-<summary>All 122 fields, with type and description</summary>
+<summary>All 123 fields, with type and description</summary>
 
 Regenerated every week from the dataset schema, via
 `client.datasets.amazonProducts.getMetadata()`, so it cannot go stale. A
 product carries the fields that apply to it: the sample file has 97
-of these 122, plus `timestamp` and `input`,
+of these 123, plus `timestamp` and `input`,
 which the schema does not list.
 
 | field | type | description |
@@ -430,6 +430,7 @@ which the schema does not list.
 | `buying_option_type` | text | Buying option type |
 | `amazon_checkout_promotion` | object | Product's checkout promotion |
 | `selected_format` | text | Selected format |
+| `reviews_breakdown` | array | Reviews breakdown |
 
 </details>
 <!-- fields:end -->
