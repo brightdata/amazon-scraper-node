@@ -135,7 +135,7 @@ rows. `scrape` never rejects for one bad ASIN; check `ok` before reading
 `product`:
 
 ```javascript
-import { scrape } from "@brightdata/amazon-scraper-node";
+import { scrape } from "@brightdata/amazon-scraper";
 
 for (const outcome of await scrape(["B0CRMZHDG8", "B0ZZZZZZZZ"])) {
   if (outcome.ok) {

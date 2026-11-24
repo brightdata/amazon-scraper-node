@@ -344,7 +344,7 @@ jobs:
           npm install
           # Two README blocks need this package installed, not just its deps.
           # The command block calls `amazon-scraper` by name, and the import
-          # block does `from "@brightdata/amazon-scraper-node"`. npm install
+          # block does `from "@brightdata/amazon-scraper"`. npm install
           # alone gives neither, where pip install -e gave Python both. So pack
           # once and install it twice: globally for the command, and into
           # node_modules under its own name for the import. --no-save keeps the
